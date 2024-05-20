@@ -1,27 +1,62 @@
 (ns app.core
   "This namespace contains your application and is the entrypoint for 'yarn start'."
-  (:require [reagent.core :as r]))
+  (:require 
+   [reagent.core :as r] 
+   [ajax.core :refer [GET json-response-format]]))
 
-(def defaultState (atom {:appName "conduit"
-                         :articles nil}))
+(defonce artiales-state (atom nil))
 
-(defonce articles-mock [{:title "Article Hello World!"}])
+(defn handler [response]
+  (reset! artiales-state response)
+  (js/console.log (str response)))
+
+(defn error-handler [{:keys [status status-text]}]
+  (js/console.log (str "something bad happened: " status " " status-text)))
+
+(defn artiles-browse []
+  (GET "https://conduit.productionready.io/api/articles?limit=20"
+    :handler handler
+    :response-format (json-response-format {:keywords? true})
+    :error-handler error-handler))
 
 (defn banner []
   [:div.banner>div.container 
-   [:h1.logo-font (:appName @defaultState)]
+   [:h1.logo-font "conduit"]
    [:p "A place to share your knowledge."]])
 
-(defn articles []
-  [:div.article-preview "Loading..."])
+(defn article-preview [{:keys [tagList title description author favoritesCount createdAt]}]
+  [:div.article-preview 
+   [:div.article-meta
+    [:a
+     [:img {:src (:image author)}]]
+    [:div.info
+     [:a.author (:username author)]
+     [:span.date (.toDateString (new js/Date createdAt))]]
+    [:div.pull-xs-right
+     [:button.btn.btn-sm.btn-outline-primary
+      [:i.ion-heart favoritesCount]]]]
+   [:a.preview-link
+    [:h1 title]
+    [:p description]
+    [:span "readm more..."]
+    [:ul.tag-list
+     (for [tag tagList]
+       ^{:key tag} [:li.tag-default.tag-pill.tag-outline tag])]]])
 
-(mapv (fn [x] [:h2 (get x :title)]) articles-mock)
+(defn articles [items]
+  (if-not (seq items)
+    [:div.article-preview "Loading..."]
+    (if (= 0 (count items))
+      [:div.article-preview "No articles are here... yet."]
+      [:div
+       (for [{:keys [slug] :as article} items]
+         ^{:key slug} [article-preview article])])))
 
 (defn main-view []
   [:div.col-md-9
    [:div.feed-toggle>ul.nav.nav-pills.outline-active>li.nav-item 
     [:a.nav-link.active {:href ""} "Global Feed"]]
-   [articles]])
+   [articles (:articles @artiales-state)]])
 
 (defn home []
   [:div.home-page 
@@ -32,7 +67,7 @@
 
 (defn header []
   [:nav.navbar.navbar-light>div.container
-   [:a.navbar-brand (:appName @defaultState)]])
+   [:a.navbar-brand (:appName "conduit")]])
 
 (defn app []
   [:div
@@ -47,4 +82,5 @@
 (defn ^:export main
   "Run application startup logic."
   []
+  (artiles-browse)
   (render))
